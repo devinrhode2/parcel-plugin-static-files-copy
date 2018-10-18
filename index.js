@@ -21,21 +21,28 @@ module.exports = bundler => {
         }
 
         const copyDir = (staticDir, bundleDir) => {
+            console.log('copyDir: staticDir', staticDir, 'bundleDir', bundleDir);
             if (fs.existsSync(staticDir)) {
-                const copy = (filepath, relative, filename) => {
+                const copy = (filepath, relative, isFile) => {
                     const dest = filepath.replace(staticDir, bundleDir);
-                    if (!filename) {
+                    // console.log('filepath', filepath, 'dest', dest);
+                    if (!isFile) {
+                        // if it's a folder, make it
                         fs.mkdir(filepath, dest);
                     } else {
+                        const copyInner = () => {
+                            console.log('filepath', filepath, 'dest', dest);
+                            fs.copyFile(filepath, dest);
+                        };
                         if (fs.existsSync(dest)) {
                             const destStat = fs.statSync(dest);
                             const srcStat = fs.statSync(filepath);
                             if (destStat.mtime <= srcStat.mtime) { // File was modified - let's copy it and inform about overwriting.
                                 console.info(`Info: Static file '${filepath}' do already exist in '${bundleDir}'. Overwriting.`);
-                                fs.copyFile(filepath, dest);
+                                copyInner()
                             }
                         } else {
-                            fs.copyFile(filepath, dest);
+                            copyInner()
                         }
                     }
                 };
@@ -44,21 +51,7 @@ module.exports = bundler => {
                 console.warn(`Warning: Static directory '${staticDir}' do not exist. Skipping.`);
             }
         };
-
-        if (typeof pkgFile.then === 'function') {
-            pkgFile.then(pkg => {
-                // Get 'staticPath' from package.json file
-                const staticDir = pkg.staticPath || "static";
-                const bundleDir = path.dirname(bundle.name);
-                if (Array.isArray(staticDir)) {
-                    for(let dir of staticDir) {
-                        copyDir(dir, bundleDir);
-                    }
-                } else {
-                    copyDir(staticDir, bundleDir);
-                }
-            });
-        } else {
+        const processPkgFile = pkgFile => {
             // Get 'staticPath' from package.json file
             const staticDir = pkgFile.staticPath || "static";
             const bundleDir = path.dirname(bundle.name);
@@ -69,6 +62,11 @@ module.exports = bundler => {
             } else {
                 copyDir(staticDir, bundleDir);
             }
+        };
+        if (typeof pkgFile.then === 'function') {
+            pkgFile.then(processPkgFile);
+        } else {
+            processPkgFile(pkgFile);
         }
     });
 };
